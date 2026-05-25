@@ -1,6 +1,6 @@
-# climate-de-pipeline
+# Weather-Driven Retail Demand Forecasting & AI Inventory Intelligence
 
-> End-to-end weather-driven demand forecasting system — from climate data ingestion through GCS → BigQuery → dbt medallion architecture to XGBoost demand forecasting with behavioral weather signals, orchestrated with Dagster.
+> End-to-end platform: weather data ingestion → behavioral weather feature engineering → demand forecasting (Prophet + XGBoost) → AI-powered inventory recommendations
 
 ![Forecast Comparison](docs/forecast_comparison.png)
 
@@ -18,6 +18,7 @@ A production-grade data engineering and forecasting pipeline that:
 6. Trains and compares five forecasting models — Naive, Prophet, and XGBoost with and without behavioral weather signals
 7. Demonstrates that forward-looking weather features and behavioral weather shock engineering improve demand forecast accuracy — particularly on anomalous weather days
 8. Orchestrates the full pipeline with Dagster
+9. Generates AI-powered operational inventory recommendations using Google Gemini
 
 **Key finding:** XGBoost with behavioral weather signals achieved **5.64% MAPE** — a 53% improvement over the naive baseline. Weather features provided the strongest lift on anomaly days, reducing error from 15.18% to 13.81% on days with unseasonable temperatures or extreme precipitation.
 
@@ -49,6 +50,13 @@ dbt Silver Layer                  dbt Silver Layer
                           ↓
               mart_forecast_output (BigQuery)
                           ↓
+              ┌─────────────────────────────┐
+              │  AI Inventory Intelligence  │
+              │  Google Gemini (free tier)  │
+              └─────────────────────────────┘
+                          ↓
+              Operational Inventory Recommendation
+                          ↓
               Dagster Orchestration
 ```
 
@@ -65,6 +73,7 @@ dbt Silver Layer                  dbt Silver Layer
 | Gold | `weather_marts` | `mart_weather_daily` | 15 weather features |
 | Gold | `weather_marts` | `mart_demand_features` | Joined demand features |
 | Output | `weather_marts` | `mart_forecast_output` | Model predictions |
+| Output | `weather_marts` | `mart_ai_recommendations` | AI recommendations |
 
 ---
 
@@ -72,7 +81,7 @@ dbt Silver Layer                  dbt Silver Layer
 
 | Tool | Purpose | Why |
 |------|---------|-----|
-| Python | Ingestion, loading, forecasting | Core language |
+| Python | Ingestion, loading, forecasting, recommendations | Core language |
 | Open-Meteo API | Weather data source | Free, no API key, historical data |
 | M5 Walmart Dataset | Sales data source | Real retail demand, 5 years daily |
 | PyArrow | Schema validation + Parquet | Explicit schema enforcement |
@@ -82,6 +91,8 @@ dbt Silver Layer                  dbt Silver Layer
 | XGBoost | Primary forecasting model | Best accuracy on tabular time series |
 | Prophet | Comparison forecasting model | Handles seasonality natively |
 | Dagster | Orchestration | Asset-based, native dbt integration |
+| Google Gemini | AI inventory recommendations | Free tier, no credit card required |
+| python-dotenv | Environment variable management | Secure API key handling |
 
 ---
 
@@ -188,6 +199,45 @@ Prophet decomposes demand into trend (slight decline Jan-May 2016), strong weekl
 
 ---
 
+## AI Inventory Intelligence Layer
+
+![AI Recommendation Output](docs/ai_recommendation_output.png)
+
+An interactive AI recommendation system powered by Google Gemini (free tier). Given any forecast date, the system reads structured forecast and weather data from BigQuery and generates plain English operational recommendations — closing the loop between prediction and decision.
+
+### Example Output
+
+```
+DATE: 2016-05-21 (Saturday)
+Forecast: 4,293 units | Actual: 4,315 units | Error: 0.5%
+Weather: 19.3°C, Partly Cloudy
+
+DEMAND OUTLOOK: Demand expected to remain strong, slightly exceeding recent averages.
+
+PRIMARY DRIVERS:
+- Strong weekend shopping behavior
+- Forecasted demand slightly above recent actuals
+- Demand trending 11.9% above 7-day average
+
+WEATHER IMPACT: Pleasant spring weather with no precipitation is
+unlikely to significantly influence demand.
+
+INVENTORY ACTION: Maintain current stock levels for high-turnover
+items, with a slight buffer of 5% on key items showing elevated demand trends.
+
+RISK LEVEL: MODERATE — demand is strong but no external demand drivers present.
+```
+
+### Usage
+
+```bash
+python -m forecasting.recommend
+```
+
+Enter specific dates, type `anomaly` for anomaly weather days, or type `snap` for SNAP benefit days.
+
+---
+
 ## Production Engineering Principles
 
 **Idempotency** — WRITE_TRUNCATE ensures running twice = same result as once.
@@ -196,7 +246,7 @@ Prophet decomposes demand into trend (slight decline Jan-May 2016), strong weekl
 
 **Schema enforcement** — Explicit schema on both PyArrow and BigQuery. No autodetect.
 
-**Separation of concerns** — ingest.py only fetches. load_to_bq.py only loads. dbt only transforms. forecasting/train.py only models. Dagster only orchestrates.
+**Separation of concerns** — ingest.py only fetches. load_to_bq.py only loads. dbt only transforms. forecasting/train.py only models. recommend.py only recommends. Dagster only orchestrates.
 
 **Raw layer preservation** — GCS Parquet files never modified. Full replay capability.
 
@@ -206,62 +256,14 @@ Prophet decomposes demand into trend (slight decline Jan-May 2016), strong weekl
 
 ---
 
-## Repository Structure
-
-```
-climate-de-pipeline/
-  ├── config/
-  │     └── settings.yaml
-  ├── ingestion/
-  │     ├── schema.py
-  │     ├── ingest.py
-  │     └── ingest_sales.py
-  ├── loading/
-  │     ├── load_to_bq.py
-  │     └── load_sales_to_bq.py
-  ├── dbt/
-  │     ├── models/
-  │     │     ├── staging/
-  │     │     │     ├── stg_weather.sql
-  │     │     │     ├── stg_sales.sql
-  │     │     │     └── schema.yml
-  │     │     └── marts/
-  │     │           ├── mart_weather_daily.sql
-  │     │           ├── mart_demand_features.sql
-  │     │           └── schema.yml
-  │     ├── macros/
-  │     │     └── generate_schema_name.sql
-  │     └── dbt_project.yml
-  ├── forecasting/
-  │     ├── train.py
-  │     ├── visualize.py
-  │     └── visualize_full.py
-  ├── orchestration/
-  │     ├── __init__.py
-  │     ├── assets.py
-  │     └── definitions.py
-  ├── docs/
-  │     ├── forecast_comparison.png
-  │     ├── 1_model_comparison.png
-  │     ├── 2_actual_vs_predicted.png
-  │     ├── 3_residual_distribution.png
-  │     ├── 4_feature_importance.png
-  │     ├── 5_prophet_decomposition.png
-  │     └── 6_train_test_split.png
-  ├── .gitignore
-  └── requirements.txt
-```
-
----
-
 ## How to Run
 
-**Prerequisites:** Python 3.13, GCP account with BigQuery and GCS enabled
+**Prerequisites:** Python 3.13, GCP account with BigQuery and GCS enabled, Gemini API key (free at aistudio.google.com)
 
 ```bash
 # 1. Clone
-git clone https://github.com/mahadharsan/climate-de-pipeline.git
-cd climate-de-pipeline
+git clone https://github.com/mahadharsan/weather-driven-demand-forecasting.git
+cd weather-driven-demand-forecasting
 
 # 2. Virtual environment
 python -m venv venv
@@ -274,24 +276,31 @@ pip install -r requirements.txt
 # Add gcp_credentials.json to config/
 # Update config/settings.yaml with your project ID and bucket name
 
-# 5. Run weather pipeline
+# 5. Configure Gemini API key
+# Copy .env.example to .env
+# Add your GEMINI_API_KEY to .env
+
+# 6. Run weather pipeline
 python -m ingestion.ingest
 python -m loading.load_to_bq
 
-# 6. Run sales pipeline
+# 7. Run sales pipeline
 python -m ingestion.ingest_sales
 python -m loading.load_sales_to_bq
 
-# 7. Run dbt transformations
+# 8. Run dbt transformations
 cd dbt && dbt run && dbt test
 
-# 8. Run forecasting models
+# 9. Run forecasting models
 cd .. && python -m forecasting.train
 
-# 9. Generate visualizations
+# 10. Generate visualizations
 python -m forecasting.visualize_full
 
-# 10. Or run everything with Dagster
+# 11. Get AI inventory recommendations
+python -m forecasting.recommend
+
+# 12. Or run everything with Dagster
 cd dbt && dbt parse
 cd .. && dagster dev -f orchestration/definitions.py
 # Open http://localhost:3000 → Materialize all

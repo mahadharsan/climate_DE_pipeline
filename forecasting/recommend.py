@@ -1,7 +1,7 @@
 # forecasting/recommend.py
 # Interactive AI-powered inventory recommendation system
 # User inputs dates, system generates operational recommendations
-# Uses Google Gemini API (free tier) — gemini-2.0-flash
+# Uses Google Gemini API  — gemini-2.0-flash
 
 import os
 import time
@@ -225,7 +225,7 @@ def resolve_dates(user_input, config):
 def main():
     print("="*70)
     print("Weather-Driven Demand Forecasting — AI Recommendation System")
-    print("Powered by Google Gemini (free tier)")
+    print("Powered by Google Gemini")
     print("="*70)
 
     config = load_config()
