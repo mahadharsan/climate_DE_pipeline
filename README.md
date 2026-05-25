@@ -2,7 +2,9 @@
 
 > End-to-end platform: weather data ingestion → behavioral weather feature engineering → demand forecasting (Prophet + XGBoost) → AI-powered inventory recommendations
 
-![Forecast Comparison](docs/1_model_comparison.png) (docs/forecast_comparison.png)
+![Model Comparisons Weather Inclusion Performance Improvement](docs/1_model_comparison.png) 
+
+![Forecast Comparison](docs/forecast_comparison.png)
 
 ---
 
